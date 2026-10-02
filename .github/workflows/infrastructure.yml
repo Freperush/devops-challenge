@@ -27,6 +27,12 @@ jobs:
       - name: Terraform
         working-directory: infra
         env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_github_owner: ${{ vars.REPO_OWNER }}
+          TF_VAR_github_owner_id: ${{ vars.REPO_OWNER_ID }}
+          TF_VAR_github_repository: ${{ vars.REPO_NAME }}
+          TF_VAR_github_repository_id: ${{ vars.REPO_ID }}
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
         run: |
           terraform init -backend=false

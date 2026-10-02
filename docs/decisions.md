@@ -10,6 +10,10 @@ Otros métodos responden `405` con cuerpo `ERROR` y `Allow: POST`. HEAD solo res
 
 El evaluador genera el token con `scripts/generate_jwt.py` (biblioteca estándar) o `scripts/generate_jwt.sh`. Firma HS256. Claims `jti`, `iat`, `nbf`, `exp`, `iss=devops-challenge`, `aud=devops-api`. Vida útil 15 minutos y leeway de 30 segundos. `jti` distinto demuestra unicidad de emisión. El token puede reutilizarse mientras no expire.
 
+## Entorno portable
+
+Terraform no guarda la IP del balanceador ni el tenant. La dirección del backend la escribe el pipeline en cada despliegue, leyendo el Service de producción. La suscripción, el tenant y los identificadores de GitHub entran por variables. `scripts/configure_github.sh` copia los outputs a los secretos del repositorio.
+
 ## Azure
 
 Un AKS, un ACR Basic y un API Management Consumption. Namespaces `dev`, `staging` y `prod`. Solo producción publica un Load Balancer. Producción usa HPA de 2 a 4 réplicas. No hay Cluster Autoscaler.

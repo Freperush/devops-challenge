@@ -1,3 +1,27 @@
+variable "subscription_id" {
+  type = string
+}
+
+variable "tenant_id" {
+  type = string
+}
+
+variable "github_owner" {
+  type = string
+}
+
+variable "github_owner_id" {
+  type = string
+}
+
+variable "github_repository" {
+  type = string
+}
+
+variable "github_repository_id" {
+  type = string
+}
+
 variable "location" {
   type    = string
   default = "eastus"
@@ -9,8 +33,12 @@ variable "vm_size" {
 }
 
 variable "alert_email" {
+  type = string
+}
+
+variable "publisher_name" {
   type    = string
-  default = "frederikleonardo@hotmail.com"
+  default = "DevOps Challenge"
 }
 
 variable "api_key" {
@@ -24,11 +52,6 @@ variable "jwt_secret" {
   sensitive = true
 }
 
-variable "backend_url" {
-  type    = string
-  default = "http://127.0.0.1"
-}
-
 variable "tags" {
   type = map(string)
   default = {
@@ -37,6 +60,6 @@ variable "tags" {
     managed-by  = "terraform"
     purpose     = "technical-assessment"
     cost-center = "personal"
-    owner       = "frederik-perez"
+    owner       = "candidate"
   }
 }

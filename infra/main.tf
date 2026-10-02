@@ -9,15 +9,23 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.6"
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
 }
 
 provider "azurerm" {
   features {}
-  subscription_id = "120e69f7-8af6-4e32-95a9-b6e4714e4740"
+  subscription_id = var.subscription_id
 }
 
 provider "random" {}
+
+provider "azuread" {
+  tenant_id = var.tenant_id
+}
 
 data "azurerm_client_config" "current" {}
 
@@ -28,8 +36,8 @@ data "azurerm_kubernetes_service_versions" "eastus" {
 resource "terraform_data" "tenant_guard" {
   lifecycle {
     precondition {
-      condition     = data.azurerm_client_config.current.tenant_id == "89cd977b-d568-4741-9620-37b93aa06fb3"
-      error_message = "Refusing to plan: Azure CLI is not on the personal tenant."
+      condition     = data.azurerm_client_config.current.tenant_id == var.tenant_id
+      error_message = "The Azure CLI session is not in var.tenant_id."
     }
   }
 }
@@ -93,7 +101,7 @@ resource "azurerm_api_management" "apim" {
   name                = "apim-devops-${random_string.suffix.result}"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  publisher_name      = "Frederik Perez"
+  publisher_name      = var.publisher_name
   publisher_email     = var.alert_email
   sku_name            = "Consumption_0"
   tags                = var.tags
@@ -125,8 +133,12 @@ resource "azurerm_api_management_api" "devops" {
   display_name          = "DevOps"
   path                  = ""
   protocols             = ["https"]
-  service_url           = var.backend_url
+  service_url           = "http://127.0.0.1"
   subscription_required = false
+
+  lifecycle {
+    ignore_changes = [service_url]
+  }
 }
 
 resource "azurerm_api_management_api_operation" "post" {

@@ -63,4 +63,24 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
           kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
+          if [ "$ENV" = "prod" ]; then
+            IP=""
+            for _ in $(seq 1 36); do
+              IP="$(kubectl -n prod get svc devops-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+              if [ -n "$IP" ]; then
+                break
+              fi
+              sleep 5
+            done
+            if [ -z "$IP" ]; then
+              echo "The production load balancer did not receive an IP"
+              exit 1
+            fi
+            az apim api update \
+              --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
+              --service-name "${{ secrets.APIM_NAME }}" \
+              --api-id devops \
+              --service-url "http://${IP}"
+            echo "API Management backend set from the current load balancer"
+          fi
           echo "Deployed ${IMAGE} to ${ENV}"
