@@ -1,0 +1,33 @@
+name: infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: plan or apply
+        type: choice
+        options: [plan]
+        default: plan
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  Terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform
+        working-directory: infra
+        env:
+          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+        run: |
+          terraform init -backend=false
+          terraform plan -input=false -no-color

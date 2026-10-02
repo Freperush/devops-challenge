@@ -1,0 +1,64 @@
+name: cd
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target namespace
+        type: choice
+        options: [dev, staging, prod]
+        default: prod
+      version:
+        description: Existing image tag, for example sha-abcdef or v1.0.0
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
+jobs:
+  Deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve image
+        id: image
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG="sha-${GITHUB_SHA}"
+            az acr build --registry "${{ secrets.ACR_NAME }}" --image "devops-api:${TAG}" .
+          fi
+          az acr repository show --name "${{ secrets.ACR_NAME }}" --image "devops-api:${TAG}" >/dev/null
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - uses: azure/setup-kubectl@v4
+      - name: Deploy
+        run: |
+          set -euo pipefail
+          ENV="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}"
+          az aks get-credentials --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" --name "${{ secrets.AKS_CLUSTER_NAME }}" --overwrite-existing
+          kubectl create namespace "$ENV" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$ENV" create secret generic devops-api \
+            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
+          kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
+          echo "Deployed ${IMAGE} to ${ENV}"
