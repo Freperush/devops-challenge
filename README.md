@@ -55,7 +55,7 @@ Para destruirlo: `terraform -chdir=infra destroy`.
 
 ## Arquitectura
 
-El cliente entra por un solo API Management. El gateway valida la API Key y el JWT solo en el POST y reenvía los demás métodos al backend, que responde `ERROR`. Hay un AKS. Cada namespace tiene su Deployment y su Service. La aplicación vuelve a validar API Key y JWT.
+El cliente entra por un solo API Management. API Management valida la API Key y el JWT solo en el POST y reenvía los demás métodos al backend, que responde `ERROR`. Hay un AKS. Cada namespace tiene su Deployment y su Service. La aplicación vuelve a validar API Key y JWT.
 
 El tamaño de nodo es la variable `vm_size`. El valor por defecto, `Standard_D2as_v4`, cabe en una suscripción con cuota de 4 vCPU. El pipeline descubre la IP del balanceador en cada despliegue y actualiza el backend de API Management. La escalabilidad de la aplicación es el HPA de producción, de 2 a 4 Pods.
 
@@ -138,19 +138,13 @@ Para llevar esa misma versión a producción sin construir otra imagen, el mismo
 ## Arquitectura de despliegue
 
 ```mermaid
-flowchart LR
+flowchart TD
   client["Cliente"] --> apim["API Management"]
-  apim --> edge["nginx edge, 2 replicas"]
-  edge --> lb["Un Load Balancer"]
-  lb -->|"/DevOps"| prodPods["Pods prod"]
-  lb -->|"/dev/DevOps"| devPods["Pods dev"]
-  lb -->|"/staging/DevOps"| stgPods["Pods staging"]
-  prodPods --> aks["Un solo AKS"]
-  devPods --> aks
-  stgPods --> aks
-  acr["Un solo ACR"] --> prodPods
-  acr --> devPods
-  acr --> stgPods
+  apim --> lb["Azure Load Balancer, Service edge"]
+  lb --> edge["nginx edge, 2 réplicas"]
+  edge -->|"/DevOps"| prod["Service y Pods prod, HPA 2-4"]
+  edge -->|"/dev/DevOps"| dev["Service y Pods dev"]
+  edge -->|"/staging/DevOps"| stg["Service y Pods staging"]
 ```
 
 ## CI/CD
