@@ -63,6 +63,7 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
           kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
+          kubectl apply -k deploy/k8s/gateway
           case "$ENV" in
             prod) API_ID="devops" ;;
             dev) API_ID="devops-dev" ;;
@@ -71,14 +72,14 @@ jobs:
           esac
           IP=""
           for _ in $(seq 1 36); do
-            IP="$(kubectl -n "$ENV" get svc devops-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            IP="$(kubectl -n gateway get svc edge -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
             if [ -n "$IP" ]; then
               break
             fi
-            sleep 5
+            sleep 10
           done
           if [ -z "$IP" ]; then
-            echo "The load balancer for ${ENV} did not receive an IP"
+            echo "The shared gateway did not receive an IP"
             exit 1
           fi
           az apim api update \

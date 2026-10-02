@@ -81,7 +81,7 @@ Un solo AKS, un solo ACR y un solo API Management. Los ambientes son namespaces.
 | dev | Actions, Run workflow, environment `dev`, version `sha-<commit>` | `https://apim-devops-btezn.azure-api.net/dev/DevOps` |
 | staging | Igual, con environment `staging` | `https://apim-devops-btezn.azure-api.net/staging/DevOps` |
 
-Cada namespace corre la versión que se le indicó. Producción tiene HPA de 2 a 4 Pods. Dev y staging quedan en 1 réplica. El pipeline toma la IP del Service de ese namespace y la guarda como backend de su API. La URL pública no lleva esa IP.
+Cada namespace corre la versión que se le indicó. Producción tiene HPA de 2 a 4 Pods. Dev y staging quedan en 1 réplica. La suscripción admite solo 3 IP públicas en la región, así que hay un solo Service `LoadBalancer` compartido. API Management elige el namespace por la ruta: `/DevOps`, `/dev/DevOps` o `/staging/DevOps`.
 
 ## Versionamiento
 

@@ -41,6 +41,30 @@ resource "azurerm_api_management_api_operation" "nonprod" {
   url_template        = "/DevOps"
 }
 
+resource "azurerm_api_management_api_policy" "nonprod" {
+  for_each            = local.nonprod_apis
+  api_name            = azurerm_api_management_api.nonprod[each.key].name
+  api_management_name = azurerm_api_management.apim.name
+  resource_group_name = azurerm_resource_group.rg.name
+  xml_content         = <<-XML
+    <policies>
+      <inbound>
+        <base />
+        <rewrite-uri template="/${each.key}/DevOps" />
+      </inbound>
+      <backend>
+        <base />
+      </backend>
+      <outbound>
+        <base />
+      </outbound>
+      <on-error>
+        <base />
+      </on-error>
+    </policies>
+  XML
+}
+
 resource "azurerm_api_management_api_operation_policy" "nonprod_post" {
   for_each            = local.nonprod_apis
   api_name            = azurerm_api_management_api.nonprod[each.key].name
