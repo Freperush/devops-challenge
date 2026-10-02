@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: edge
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: edge
@@ -12,12 +12,39 @@ spec:
       labels:
         app: edge
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: edge
       containers:
         - name: nginx
           image: nginxinc/nginx-unprivileged:1.27-alpine
           ports:
             - name: http
               containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
           volumeMounts:
             - name: config
               mountPath: /etc/nginx/nginx.conf

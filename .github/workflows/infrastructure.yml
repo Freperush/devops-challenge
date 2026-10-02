@@ -1,6 +1,10 @@
 name: infrastructure
 
 on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infrastructure.yml"
   workflow_dispatch:
     inputs:
       action:
@@ -14,7 +18,23 @@ permissions:
   contents: read
 
 jobs:
+  Validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Format and validate
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate
+
   Terraform:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

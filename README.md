@@ -10,7 +10,7 @@ En bash, con el secreto recibido por canal privado:
 
 ```bash
 export JWT_SECRET="<secreto-entregado-en-privado>"
-JWT=$(python scripts/generate_jwt.py)
+JWT=$(python3 scripts/generate_jwt.py)
 curl -X POST \
   -H "X-Parse-REST-API-Key: 2f5ae96c-b558-4c7b-a590-a501ae1c3f6c" \
   -H "X-JWT-KWY: ${JWT}" \
@@ -140,12 +140,11 @@ Para llevar esa misma versión a producción sin construir otra imagen, el mismo
 ```mermaid
 flowchart LR
   client["Cliente"] --> apim["API Management"]
-  apim -->|"/DevOps"| prodLb["Service prod"]
-  apim -->|"/dev/DevOps"| devLb["Service dev"]
-  apim -->|"/staging/DevOps"| stgLb["Service staging"]
-  prodLb --> prodPods["Pods prod"]
-  devLb --> devPods["Pods dev"]
-  stgLb --> stgPods["Pods staging"]
+  apim --> edge["nginx edge, 2 replicas"]
+  edge --> lb["Un Load Balancer"]
+  lb -->|"/DevOps"| prodPods["Pods prod"]
+  lb -->|"/dev/DevOps"| devPods["Pods dev"]
+  lb -->|"/staging/DevOps"| stgPods["Pods staging"]
   prodPods --> aks["Un solo AKS"]
   devPods --> aks
   stgPods --> aks

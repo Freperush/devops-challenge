@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Print one HS256 JWT. Uses only the Python standard library."""
 
+from __future__ import annotations
+
 import base64
 import hashlib
 import hmac

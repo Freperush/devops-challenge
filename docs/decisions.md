@@ -2,7 +2,7 @@
 
 ## Aplicación
 
-FastAPI con un solo ruta `/DevOps`. `from` entra por alias de Pydantic. `timeToLifeSec` es entero estricto, sin rango adicional. Los strings no tienen longitud mínima. Los campos extra se ignoran: el enunciado no los prohíbe y un test oculto podría enviarlos.
+FastAPI con una sola ruta `/DevOps`. `from` entra por alias de Pydantic. `timeToLifeSec` es entero estricto, sin rango adicional. Los strings no tienen longitud mínima. Los campos extra se ignoran: el enunciado no los prohíbe y un test oculto podría enviarlos.
 
 Otros métodos responden `405` con cuerpo `ERROR` y `Allow: POST`. HEAD solo responde el status. El orden es método, API Key, JWT y después el body.
 
@@ -16,7 +16,7 @@ Terraform no guarda la IP del balanceador ni el tenant. La dirección del backen
 
 ## Azure
 
-Un AKS, un ACR Basic y un API Management Consumption. Namespaces `dev`, `staging` y `prod`. Solo producción publica un Load Balancer. Producción usa HPA de 2 a 4 réplicas. No hay Cluster Autoscaler.
+Un AKS, un ACR Basic y un API Management Consumption. Namespaces `dev`, `staging` y `prod`. Un solo Load Balancer público, el Service `edge` del namespace `gateway`, con dos réplicas de nginx. API Management elige el namespace por la ruta. Producción usa HPA de 2 a 4 réplicas. No hay Cluster Autoscaler.
 
 `Standard_D4als_v6` aparece en East US con restricción `NotAvailableForSubscription`. La cuota real de la Free Trial es 4 vCPU regionales, así que dos nodos de 4 vCPU no se pueden crear. Los nodos son `Standard_D2as_v4`: es una SKU de 2 vCPU y 8 GiB sin restricción en esta suscripción, y dos nodos caben en los 4 vCPU de cuota.
 

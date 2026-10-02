@@ -3,6 +3,9 @@ name: ci
 on:
   pull_request:
   push:
+    branches-ignore:
+      - master
+  workflow_call:
 
 permissions:
   contents: read
@@ -26,8 +29,30 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
+          python-version: "3.9"
+      - name: JWT generator on Python 3.9
+        env:
+          JWT_SECRET: test-secret-test-secret-test-sec
+        run: python scripts/generate_jwt.py
+      - uses: actions/setup-python@v5
+        with:
           python-version: "3.13"
       - name: Install
         run: pip install -e ".[dev]"
       - name: Test
-        run: pytest --cov=app --cov-branch --cov-fail-under=90 --cov-report=xml --cov-report=term-missing
+        run: pytest --cov=app --cov-branch --cov-fail-under=90 --cov-report=xml --cov-report=html --cov-report=term-missing
+      - name: Publish coverage summary
+        run: |
+          {
+            echo "### Coverage"
+            echo
+            echo '```'
+            coverage report
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.xml
+            htmlcov/

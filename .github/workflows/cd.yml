@@ -24,9 +24,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  ci:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
   Deploy:
+    needs: ci
+    if: ${{ !failure() && !cancelled() && (github.event_name != 'workflow_dispatch' || inputs.environment != 'prod' || github.ref == 'refs/heads/master') }}
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}
+    env:
+      API_KEY: ${{ secrets.API_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      AKS_RESOURCE_GROUP: ${{ secrets.AKS_RESOURCE_GROUP }}
+      AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+      APIM_NAME: ${{ secrets.APIM_NAME }}
+      REQUESTED_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
@@ -40,36 +54,46 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ inputs.version }}"
+            TAG="$REQUESTED_VERSION"
+            case "$TAG" in
+              sha-*|v[0-9]*) ;;
+              *) echo "Invalid version tag: $TAG"; exit 1 ;;
+            esac
           else
             TAG="sha-${GITHUB_SHA}"
-            az acr login --name "${{ secrets.ACR_NAME }}"
-            docker build -t "${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${TAG}" .
-            docker push "${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${TAG}"
+            az acr login --name "$ACR_NAME"
+            docker build -t "${ACR_NAME}.azurecr.io/devops-api:${TAG}" .
+            docker push "${ACR_NAME}.azurecr.io/devops-api:${TAG}"
           fi
-          az acr repository show --name "${{ secrets.ACR_NAME }}" --image "devops-api:${TAG}" >/dev/null
+          az acr repository show --name "$ACR_NAME" --image "devops-api:${TAG}" >/dev/null
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - uses: azure/setup-kubectl@v4
       - name: Deploy
         run: |
           set -euo pipefail
-          ENV="${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'prod' }}"
-          az aks get-credentials --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" --name "${{ secrets.AKS_CLUSTER_NAME }}" --overwrite-existing
-          kubectl create namespace "$ENV" --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n "$ENV" create secret generic devops-api \
-            --from-literal=API_KEY="${{ secrets.API_KEY }}" \
-            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-          IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
-          kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
-          kubectl apply -k deploy/k8s/gateway
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="$REQUESTED_ENVIRONMENT"
+          else
+            ENV="prod"
+          fi
           case "$ENV" in
-            prod) API_ID="devops" ;;
-            dev) API_ID="devops-dev" ;;
-            staging) API_ID="devops-staging" ;;
+            prod) API_ID="devops"; URL_PATH="/DevOps" ;;
+            dev) API_ID="devops-dev"; URL_PATH="/dev/DevOps" ;;
+            staging) API_ID="devops-staging"; URL_PATH="/staging/DevOps" ;;
             *) echo "Unknown environment: $ENV"; exit 1 ;;
           esac
+          az aks get-credentials --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --overwrite-existing
+          kubectl create namespace "$ENV" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$ENV" create secret generic devops-api \
+            --from-literal=API_KEY="$API_KEY" \
+            --from-literal=JWT_SECRET="$JWT_SECRET" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          IMAGE="${ACR_NAME}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
+          kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
+          kubectl apply -k deploy/k8s/gateway
+          kubectl -n "$ENV" rollout status deployment/devops-api --timeout=180s
+          kubectl -n gateway rollout status deployment/edge --timeout=180s
           IP=""
           for _ in $(seq 1 36); do
             IP="$(kubectl -n gateway get svc edge -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
@@ -83,9 +107,22 @@ jobs:
             exit 1
           fi
           az apim api update \
-            --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
-            --service-name "${{ secrets.APIM_NAME }}" \
+            --resource-group "$AKS_RESOURCE_GROUP" \
+            --service-name "$APIM_NAME" \
             --api-id "$API_ID" \
             --service-url "http://${IP}"
-          echo "API ${API_ID} now targets the ${ENV} namespace"
+          JWT="$(python3 scripts/generate_jwt.py)"
+          curl --fail-with-body -sS -X POST \
+            -H "X-Parse-REST-API-Key: ${API_KEY}" \
+            -H "X-JWT-KWY: ${JWT}" \
+            -H "Content-Type: application/json" \
+            -d '{ "message": "This is a test", "to": "Juan Perez", "from": "Rita Asturia", "timeToLifeSec": 45 }' \
+            "https://${APIM_NAME}.azure-api.net${URL_PATH}"
+          echo
+          GET_CODE="$(curl -sS -o /tmp/get-body.txt -w "%{http_code}" "https://${APIM_NAME}.azure-api.net${URL_PATH}")"
+          echo "GET ${GET_CODE} $(cat /tmp/get-body.txt)"
+          test "$GET_CODE" = "405"
+          grep -q "ERROR" /tmp/get-body.txt
           echo "Deployed ${IMAGE} to ${ENV}"
+        env:
+          REQUESTED_ENVIRONMENT: ${{ inputs.environment }}
