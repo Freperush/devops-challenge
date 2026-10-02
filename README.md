@@ -38,7 +38,7 @@ Respuesta esperada, HTTP 200:
 
 Prueba negativa: `GET https://apim-devops-btezn.azure-api.net/DevOps` devuelve el cuerpo `ERROR`.
 
-Cada ejecución de `scripts/generate_jwt.py` emite un JWT nuevo (`jti` distinto). El token dura 15 minutos y puede reutilizarse mientras siga vigente. No hay prevención de replay.
+Cada ejecución de `scripts/generate_jwt.py` emite un JWT nuevo (`jti` distinto). El token dura 15 minutos y puede reutilizarse mientras siga vigente. No hay prevención de replay. Esa protección queda descrita como mejora en la sección de presupuesto.
 
 ## Levantar en otra suscripción
 
@@ -92,6 +92,10 @@ Cada namespace corre la versión que se le indicó. Producción tiene HPA de 2 a
 ## Costo
 
 Estimación de lista East US, 2 de octubre de 2026, para dos `Standard_D2as_v4` (USD 0,096/h cada una), un Load Balancer, una IP, dos discos de 64 GiB y ACR Basic: unos USD 0,24 por hora, USD 6 por 24 h, USD 12 por 48 h y USD 17 por 72 h. API Management Consumption no tiene cargo fijo. El budget de USD 30 avisa al 50, 80 y 100 % del costo real y al 100 % pronosticado. No apaga recursos. Hay que ejecutar `terraform destroy` al cerrar la evaluación.
+
+## Mejoras con más presupuesto
+
+Un JWT de un solo uso no está implementado. Cada token nuevo lleva un `jti` distinto, pero un token vigente puede repetirse. Rechazar la repetición exige un almacén compartido entre los Pods: la memoria de cada réplica no sirve, porque el otro Pod no vería el `jti` ya consumido. Ese almacén, por ejemplo Redis, suma costo fijo y no cabe en el presupuesto de USD 30 de esta prueba. Con más presupuesto se puede añadir y consultar el `jti` antes de aceptar el POST.
 
 ## Limitaciones
 
