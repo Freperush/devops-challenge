@@ -13,7 +13,14 @@ b64url() {
 
 now=$(date +%s)
 exp=$((now + 900))
-jti=$(uuidgen | tr '[:upper:]' '[:lower:]')
+if command -v uuidgen >/dev/null 2>&1; then
+  jti=$(uuidgen | tr '[:upper:]' '[:lower:]')
+elif command -v python3 >/dev/null 2>&1; then
+  jti=$(python3 -c 'import uuid; print(uuid.uuid4())')
+else
+  echo "uuidgen or python3 is required" >&2
+  exit 1
+fi
 header=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64url)
 payload=$(printf '{"jti":"%s","iat":%s,"nbf":%s,"exp":%s,"iss":"devops-challenge","aud":"devops-api"}' "$jti" "$now" "$now" "$exp" | b64url)
 signing="${header}.${payload}"

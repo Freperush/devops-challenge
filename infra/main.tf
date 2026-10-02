@@ -72,6 +72,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
   sku_tier            = "Free"
   tags                = var.tags
 
+  lifecycle {
+    ignore_changes = [kubernetes_version]
+  }
+
   default_node_pool {
     name            = "system"
     node_count      = 2

@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - deployment.yaml
   - service.yaml
+  - pdb.yaml
 configMapGenerator:
   - name: edge-nginx
     files:

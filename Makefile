@@ -1,8 +1,14 @@
 .PHONY: install lint format test coverage docker-build docker-run smoke jwt tf-validate k8s-validate
 
-PY ?= .venv/Scripts/python.exe
-PIP ?= .venv/Scripts/pip.exe
-RUFF ?= .venv/Scripts/ruff.exe
+ifeq ($(OS),Windows_NT)
+  PY ?= .venv/Scripts/python.exe
+  PIP ?= .venv/Scripts/pip.exe
+  RUFF ?= .venv/Scripts/ruff.exe
+else
+  PY ?= .venv/bin/python
+  PIP ?= .venv/bin/pip
+  RUFF ?= .venv/bin/ruff
+endif
 
 install:
 	python -m venv .venv
