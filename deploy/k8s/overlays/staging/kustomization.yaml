@@ -4,3 +4,11 @@ namespace: staging
 resources:
   - namespace.yaml
   - ../../base
+patches:
+  - target:
+      kind: Service
+      name: devops-api
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer

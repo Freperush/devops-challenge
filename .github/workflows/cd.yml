@@ -63,24 +63,28 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           IMAGE="${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${{ steps.image.outputs.tag }}"
           kubectl kustomize "deploy/k8s/overlays/${ENV}" | sed "s#devops-api:local#${IMAGE}#" | kubectl apply -f -
-          if [ "$ENV" = "prod" ]; then
-            IP=""
-            for _ in $(seq 1 36); do
-              IP="$(kubectl -n prod get svc devops-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-              if [ -n "$IP" ]; then
-                break
-              fi
-              sleep 5
-            done
-            if [ -z "$IP" ]; then
-              echo "The production load balancer did not receive an IP"
-              exit 1
+          case "$ENV" in
+            prod) API_ID="devops" ;;
+            dev) API_ID="devops-dev" ;;
+            staging) API_ID="devops-staging" ;;
+            *) echo "Unknown environment: $ENV"; exit 1 ;;
+          esac
+          IP=""
+          for _ in $(seq 1 36); do
+            IP="$(kubectl -n "$ENV" get svc devops-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
+            if [ -n "$IP" ]; then
+              break
             fi
-            az apim api update \
-              --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
-              --service-name "${{ secrets.APIM_NAME }}" \
-              --api-id devops \
-              --service-url "http://${IP}"
-            echo "API Management backend set from the current load balancer"
+            sleep 5
+          done
+          if [ -z "$IP" ]; then
+            echo "The load balancer for ${ENV} did not receive an IP"
+            exit 1
           fi
+          az apim api update \
+            --resource-group "${{ secrets.AKS_RESOURCE_GROUP }}" \
+            --service-name "${{ secrets.APIM_NAME }}" \
+            --api-id "$API_ID" \
+            --service-url "http://${IP}"
+          echo "API ${API_ID} now targets the ${ENV} namespace"
           echo "Deployed ${IMAGE} to ${ENV}"
