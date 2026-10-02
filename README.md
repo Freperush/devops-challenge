@@ -36,7 +36,7 @@ No hay tenant, suscripción, IP ni nombres de Azure escritos en el código. Un e
 1. Entra en la suscripción destino con `az login` y en el repositorio con `gh auth login`.
 2. Copia `infra/terraform.tfvars.example` a `infra/terraform.tfvars`.
 3. Rellena suscripción, tenant, correo de alertas y `jwt_secret`. Los identificadores de GitHub salen de `gh api user` y `gh repo view --json databaseId`.
-4. `terraform -chdir=infra init` y `terraform -chdir=infra apply`.
+4. `terraform -chdir=infra init` y `terraform -chdir=infra apply`. En una suscripción vacía esto crea también la identidad de GitHub. Si esa aplicación ya existe, impórtala al estado antes de aplicar.
 5. Exporta `API_KEY` y `JWT_SECRET`, y ejecuta `bash scripts/configure_github.sh`.
 6. Haz push a `master`. El pipeline construye la imagen, la despliega y apunta API Management a la IP que Azure acabe de asignar al balanceador.
 
