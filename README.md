@@ -83,10 +83,81 @@ Un solo AKS, un solo ACR y un solo API Management. Los ambientes son namespaces.
 
 Cada namespace corre la versión que se le indicó. Producción tiene HPA de 2 a 4 Pods. Dev y staging quedan en 1 réplica. El pipeline toma la IP del Service de ese namespace y la guarda como backend de su API. La URL pública no lleva esa IP.
 
+## Versionamiento
+
+Cada imagen es inmutable. El pipeline no despliega `latest`.
+
+| Etiqueta | Cuándo aparece |
+| --- | --- |
+| `sha-<commit>` | En cada push a `master`. Es la versión que queda en producción. |
+| `vX.Y.Z` | Si esa etiqueta ya existe en ACR. El despliegue manual la acepta igual que un `sha-`. |
+
+La versión que corre un ambiente es el tag con el que se desplegó ese namespace. Los tres pueden ser distintos al mismo tiempo.
+
+```mermaid
+flowchart LR
+  commit["commit abc"] --> image["ACR devops-api:sha-abc"]
+  image --> dev["namespace dev"]
+  image --> staging["namespace staging"]
+  other["ACR devops-api:sha-ccc"] --> prod["namespace prod"]
+```
+
+## Pipelines
+
+`ci.yml` corre en cada push y en cada pull request. Tiene dos jobs: `Build` y `Test`.
+
+`cd.yml` tiene dos caminos.
+
+```mermaid
+flowchart TD
+  pr["Pull request"] --> ci["ci.yml: Build y Test"]
+  ci --> merge["merge a master"]
+  merge --> build["Construir devops-api:sha-commit"]
+  build --> acr["ACR"]
+  acr --> prod["namespace prod"]
+  dispatch["workflow_dispatch environment + version"] --> exists{"El tag ya está en ACR"}
+  exists -->|sí| chosen["namespace dev, staging o prod"]
+  exists -->|no| stop["El job falla y no despliega"]
+```
+
+El push a `master` solo actualiza producción. No toca dev ni staging.
+
+## Promover una versión sin mover las demás
+
+Ejemplo: producción corre `sha-ccc` porque ese fue el último merge a `master`. Staging está probando `sha-bbb`. En dev ya validaste `sha-aaa` y quieres pasarla a staging.
+
+En GitHub: Actions, workflow `cd`, Run workflow.
+
+- Environment: `staging`
+- Version: `sha-aaa`
+
+Eso redespliega solo el namespace `staging` con la imagen que ya está en dev. Producción sigue en `sha-ccc`. Dev sigue en `sha-aaa`.
+
+Para llevar esa misma versión a producción sin construir otra imagen, el mismo formulario con Environment `prod` y Version `sha-aaa`. El siguiente push a `master` volverá a desplegar el `sha-` de ese commit nuevo. Rollback es el mismo formulario con un tag anterior.
+
+## Arquitectura de despliegue
+
+```mermaid
+flowchart LR
+  client["Cliente"] --> apim["API Management"]
+  apim -->|"/DevOps"| prodLb["Service prod"]
+  apim -->|"/dev/DevOps"| devLb["Service dev"]
+  apim -->|"/staging/DevOps"| stgLb["Service staging"]
+  prodLb --> prodPods["Pods prod"]
+  devLb --> devPods["Pods dev"]
+  stgLb --> stgPods["Pods staging"]
+  prodPods --> aks["Un solo AKS"]
+  devPods --> aks
+  stgPods --> aks
+  acr["Un solo ACR"] --> prodPods
+  acr --> devPods
+  acr --> stgPods
+```
+
 ## CI/CD
 
 - `ci.yml`: jobs `Build` y `Test` en cada push y pull request.
-- `cd.yml`: push a `master` construye la imagen `sha-<commit>` en ACR y despliega en `prod`. `workflow_dispatch` redespliega un tag ya existente en `dev`, `staging` o `prod`. Rollback es volver a desplegar un tag anterior.
+- `cd.yml`: push a `master` construye `sha-<commit>` y despliega en `prod`. `workflow_dispatch` redespliega un tag existente en `dev`, `staging` o `prod`.
 - El apply de Terraform es local y bajo demanda. El workflow de infraestructura solo hace plan, para no crear una segunda copia del clúster.
 
 ## Costo
