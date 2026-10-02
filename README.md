@@ -2,21 +2,32 @@
 
 ## Cómo evaluar
 
-HOST es el hostname de `terraform output -raw gateway_url` después del despliegue. La ruta es exactamente `/DevOps`.
+HOST de producción: `apim-devops-btezn.azure-api.net`
 
-Ejemplo, cuando el gateway ya existe: `https://<gateway>/DevOps`.
+URL: `https://apim-devops-btezn.azure-api.net/DevOps`
 
-En PowerShell, con el secreto recibido por canal privado:
+En bash, con el secreto recibido por canal privado:
+
+```bash
+export JWT_SECRET="<secreto-entregado-en-privado>"
+JWT=$(python scripts/generate_jwt.py)
+curl -X POST \
+  -H "X-Parse-REST-API-Key: 2f5ae96c-b558-4c7b-a590-a501ae1c3f6c" \
+  -H "X-JWT-KWY: ${JWT}" \
+  -H "Content-Type: application/json" \
+  -d '{ "message": "This is a test", "to": "Juan Perez", "from": "Rita Asturia", "timeToLifeSec": 45 }' \
+  https://apim-devops-btezn.azure-api.net/DevOps
+```
+
+En PowerShell el JSON no debe ir partido. Este comando ya fue probado:
 
 ```powershell
 $env:JWT_SECRET = "<secreto-entregado-en-privado>"
-$env:JWT = python scripts/generate_jwt.py
-curl.exe -X POST `
-  -H "X-Parse-REST-API-Key: 2f5ae96c-b558-4c7b-a590-a501ae1c3f6c" `
-  -H "X-JWT-KWY: $env:JWT" `
-  -H "Content-Type: application/json" `
-  -d '{ "message": "This is a test", "to": "Juan Perez", "from": "Rita Asturia", "timeToLifeSec": 45 }' `
-  https://<HOST>/DevOps
+$env:JWT = (python .\scripts\generate_jwt.py).Trim()
+Invoke-RestMethod -Method POST -Uri "https://apim-devops-btezn.azure-api.net/DevOps" -Headers @{
+  "X-Parse-REST-API-Key" = "2f5ae96c-b558-4c7b-a590-a501ae1c3f6c"
+  "X-JWT-KWY" = $env:JWT
+} -ContentType "application/json" -Body '{"message":"This is a test","to":"Juan Perez","from":"Rita Asturia","timeToLifeSec":45}'
 ```
 
 Respuesta esperada, HTTP 200:
@@ -25,7 +36,7 @@ Respuesta esperada, HTTP 200:
 {"message": "Hello Juan Perez your message will be sent"}
 ```
 
-Prueba negativa: `GET https://<HOST>/DevOps` devuelve el cuerpo `ERROR`.
+Prueba negativa: `GET https://apim-devops-btezn.azure-api.net/DevOps` devuelve el cuerpo `ERROR`.
 
 Cada ejecución de `scripts/generate_jwt.py` emite un JWT nuevo (`jti` distinto). El token dura 15 minutos y puede reutilizarse mientras siga vigente. No hay prevención de replay.
 
@@ -44,7 +55,7 @@ Para destruirlo: `terraform -chdir=infra destroy`.
 
 ## Arquitectura
 
-El cliente entra por API Management Consumption. El gateway valida la API Key y el JWT solo en `POST /DevOps` y reenvía el resto de métodos al backend, que responde `ERROR`. El Service `LoadBalancer` de producción reparte hacia los Pods. Dev y staging son namespaces del mismo clúster, con Service interno. La aplicación vuelve a validar API Key y JWT.
+El cliente entra por un solo API Management. El gateway valida la API Key y el JWT solo en el POST y reenvía los demás métodos al backend, que responde `ERROR`. Hay un AKS. Cada namespace tiene su Deployment y su Service. La aplicación vuelve a validar API Key y JWT.
 
 El tamaño de nodo es la variable `vm_size`. El valor por defecto, `Standard_D2as_v4`, cabe en una suscripción con cuota de 4 vCPU. El pipeline descubre la IP del balanceador en cada despliegue y actualiza el backend de API Management. La escalabilidad de la aplicación es el HPA de producción, de 2 a 4 Pods.
 
@@ -59,6 +70,18 @@ $env:JWT_SECRET = "cambia-este-secreto-de-al-menos-32-bytes"
 docker build -t devops-api:local .
 docker run --rm -p 8080:8080 -e API_KEY -e JWT_SECRET devops-api:local
 ```
+
+## Ambientes
+
+Un solo AKS, un solo ACR y un solo API Management. Los ambientes son namespaces.
+
+| Ambiente | Cómo se despliega | URL |
+| --- | --- | --- |
+| prod | Push a `master` | `https://apim-devops-btezn.azure-api.net/DevOps` |
+| dev | Actions, Run workflow, environment `dev`, version `sha-<commit>` | `https://apim-devops-btezn.azure-api.net/dev/DevOps` |
+| staging | Igual, con environment `staging` | `https://apim-devops-btezn.azure-api.net/staging/DevOps` |
+
+Cada namespace corre la versión que se le indicó. Producción tiene HPA de 2 a 4 Pods. Dev y staging quedan en 1 réplica. El pipeline toma la IP del Service de ese namespace y la guarda como backend de su API. La URL pública no lleva esa IP.
 
 ## CI/CD
 
