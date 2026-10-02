@@ -43,7 +43,9 @@ jobs:
             TAG="${{ inputs.version }}"
           else
             TAG="sha-${GITHUB_SHA}"
-            az acr build --registry "${{ secrets.ACR_NAME }}" --image "devops-api:${TAG}" .
+            az acr login --name "${{ secrets.ACR_NAME }}"
+            docker build -t "${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${TAG}" .
+            docker push "${{ secrets.ACR_NAME }}.azurecr.io/devops-api:${TAG}"
           fi
           az acr repository show --name "${{ secrets.ACR_NAME }}" --image "devops-api:${TAG}" >/dev/null
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
