@@ -42,8 +42,8 @@ jobs:
       APIM_NAME: ${{ secrets.APIM_NAME }}
       REQUESTED_VERSION: ${{ inputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -68,7 +68,7 @@ jobs:
           az acr repository show --name "$ACR_NAME" --image "devops-api:${TAG}" >/dev/null
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - uses: azure/setup-kubectl@v4
+      - uses: azure/setup-kubectl@v5
       - name: Deploy
         run: |
           set -euo pipefail
@@ -112,13 +112,15 @@ jobs:
             --api-id "$API_ID" \
             --service-url "http://${IP}"
           JWT="$(python3 scripts/generate_jwt.py)"
-          curl --fail-with-body -sS -X POST \
+          EXPECTED='{"message": "Hello Juan Perez your message will be sent"}'
+          POST_BODY="$(curl --fail-with-body -sS -X POST \
             -H "X-Parse-REST-API-Key: ${API_KEY}" \
             -H "X-JWT-KWY: ${JWT}" \
             -H "Content-Type: application/json" \
             -d '{ "message": "This is a test", "to": "Juan Perez", "from": "Rita Asturia", "timeToLifeSec": 45 }' \
-            "https://${APIM_NAME}.azure-api.net${URL_PATH}"
-          echo
+            "https://${APIM_NAME}.azure-api.net${URL_PATH}")"
+          echo "$POST_BODY"
+          test "$POST_BODY" = "$EXPECTED"
           GET_CODE="$(curl -sS -o /tmp/get-body.txt -w "%{http_code}" "https://${APIM_NAME}.azure-api.net${URL_PATH}")"
           echo "GET ${GET_CODE} $(cat /tmp/get-body.txt)"
           test "$GET_CODE" = "405"

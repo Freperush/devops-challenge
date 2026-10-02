@@ -24,4 +24,4 @@ El presupuesto mensual es USD 30. Las alertas no detienen el consumo. El apply d
 
 ## Fuera de esta entrega
 
-Cluster Autoscaler, estado remoto de Terraform, firma de imágenes, SBOM, Key Vault y anti-replay.
+Cluster Autoscaler, estado remoto de Terraform, firma de imágenes, SBOM, Key Vault, anti-replay, lock de dependencias con hashes, Actions fijadas por SHA y un proceso que cree tags `vX.Y.Z`.

@@ -5,55 +5,23 @@ on:
     paths:
       - "infra/**"
       - ".github/workflows/infrastructure.yml"
-  workflow_dispatch:
-    inputs:
-      action:
-        description: plan or apply
-        type: choice
-        options: [plan]
-        default: plan
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   Validate:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: infra
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
       - name: Format and validate
         run: |
           terraform fmt -check
           terraform init -backend=false -input=false
           terraform validate
-
-  Terraform:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: hashicorp/setup-terraform@v3
-      - name: Terraform
-        working-directory: infra
-        env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-          TF_VAR_github_owner: ${{ vars.REPO_OWNER }}
-          TF_VAR_github_owner_id: ${{ vars.REPO_OWNER_ID }}
-          TF_VAR_github_repository: ${{ vars.REPO_NAME }}
-          TF_VAR_github_repository_id: ${{ vars.REPO_ID }}
-          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-        run: |
-          terraform init -backend=false
-          terraform plan -input=false -no-color
