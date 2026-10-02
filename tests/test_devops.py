@@ -10,7 +10,15 @@ import jwt
 from fastapi.testclient import TestClient
 
 from app.main import AUDIENCE, ISSUER, app
-from tests.conftest import API_KEY, JWT_SECRET, VALID_BODY
+
+API_KEY = "2f5ae96c-b558-4c7b-a590-a501ae1c3f6c"
+JWT_SECRET = "test-secret-test-secret-test-sec"
+VALID_BODY = {
+    "message": "This is a test",
+    "to": "Juan Perez",
+    "from": "Rita Asturia",
+    "timeToLifeSec": 45,
+}
 
 client = TestClient(app)
 ROOT = Path(__file__).resolve().parents[1]
