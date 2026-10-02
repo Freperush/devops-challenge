@@ -2,7 +2,9 @@
 
 ## Cómo evaluar
 
-HOST: pendiente hasta el `terraform apply`. La URL final es `https://<gateway>/DevOps`.
+HOST es el hostname de `terraform output -raw gateway_url` después del despliegue. La ruta es exactamente `/DevOps`.
+
+Ejemplo, cuando el gateway ya existe: `https://<gateway>/DevOps`.
 
 En PowerShell, con el secreto recibido por canal privado:
 
@@ -27,11 +29,24 @@ Prueba negativa: `GET https://<HOST>/DevOps` devuelve el cuerpo `ERROR`.
 
 Cada ejecución de `scripts/generate_jwt.py` emite un JWT nuevo (`jti` distinto). El token dura 15 minutos y puede reutilizarse mientras siga vigente. No hay prevención de replay.
 
+## Levantar en otra suscripción
+
+No hay tenant, suscripción, IP ni nombres de Azure escritos en el código. Un entorno nuevo solo cambia `infra/terraform.tfvars` y los secretos que el script copia a GitHub.
+
+1. Entra en la suscripción destino con `az login` y en el repositorio con `gh auth login`.
+2. Copia `infra/terraform.tfvars.example` a `infra/terraform.tfvars`.
+3. Rellena suscripción, tenant, correo de alertas y `jwt_secret`. Los identificadores de GitHub salen de `gh api user` y `gh repo view --json databaseId`.
+4. `terraform -chdir=infra init` y `terraform -chdir=infra apply`.
+5. Exporta `API_KEY` y `JWT_SECRET`, y ejecuta `bash scripts/configure_github.sh`.
+6. Haz push a `master`. El pipeline construye la imagen, la despliega y apunta API Management a la IP que Azure acabe de asignar al balanceador.
+
+Para destruirlo: `terraform -chdir=infra destroy`.
+
 ## Arquitectura
 
 El cliente entra por API Management Consumption. El gateway valida la API Key y el JWT solo en `POST /DevOps` y reenvía el resto de métodos al backend, que responde `ERROR`. El Service `LoadBalancer` de producción reparte hacia los Pods. Dev y staging son namespaces del mismo clúster, con Service interno. La aplicación vuelve a validar API Key y JWT.
 
-La suscripción Free Trial de East US tiene 4 vCPU regionales. `Standard_D4als_v6` no está disponible para esta suscripción y dos nodos de 4 vCPU no caben en esa cuota. El clúster queda en dos nodos `Standard_D2as_v4`, sin Cluster Autoscaler. La escalabilidad dinámica de la aplicación es el HPA de producción (mínimo 2, máximo 4).
+El tamaño de nodo es la variable `vm_size`. El valor por defecto, `Standard_D2as_v4`, cabe en una suscripción con cuota de 4 vCPU. El pipeline descubre la IP del balanceador en cada despliegue y actualiza el backend de API Management. La escalabilidad de la aplicación es el HPA de producción, de 2 a 4 Pods.
 
 ## Local
 

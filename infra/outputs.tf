@@ -21,3 +21,7 @@ output "apim_name" {
 output "gateway_url" {
   value = azurerm_api_management.apim.gateway_url
 }
+
+output "github_client_id" {
+  value = azuread_application.github.client_id
+}
