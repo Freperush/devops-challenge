@@ -13,10 +13,3 @@ patches:
     patch: |-
       - op: remove
         path: /spec/replicas
-  - target:
-      kind: Service
-      name: devops-api
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: LoadBalancer
